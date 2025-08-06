@@ -8,7 +8,7 @@ A simple web app to find train connections between Swiss cities using the free p
 - Choose one-way or roundtrip with nights stay
 - Search for connections on selected date(s)
 - Sort results by fastest or cheapest
-- Responsive UI with a nice background image
+- Responsive UI 
 
 ## API
 
