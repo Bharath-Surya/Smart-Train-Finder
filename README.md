@@ -16,7 +16,7 @@ Uses Transport Open Data API (https://transport.opendata.ch/) to fetch real-time
 
 ## Deployment
 
-Deployed on Vercel: https://your-deployment-url.vercel.app
+Deployed on Vercel: smart-train-finder-dkm9te9ra-bharath-suryas-projects.vercel.app
 
 ---
 
