@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>🚄 Smart Train Finder</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap");
+      body {
+        font-family: "Inter", sans-serif, sans-serif;
+        margin: 0;
+        padding: 2rem;
+        min-height: 100vh;
+        background: url("https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1350&q=80")
+          no-repeat center center fixed;
+        background-size: cover;
+        color: #fff;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: -1;
+      }
+      .container {
+        max-width: 900px;
+        margin: auto;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+      }
+      h1 {
+        font-weight: 700;
+        margin-bottom: 1rem;
+        text-align: center;
+        text-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
+      }
+      form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 1.5rem;
+      }
+      label {
+        display: flex;
+        flex-direction: column;
+        font-weight: 600;
+        font-size: 0.9rem;
+        min-width: 130px;
+      }
+      select,
+      input[type="date"],
+      input[type="number"] {
+        margin-top: 0.3rem;
+        padding: 0.5rem;
+        border-radius: 6px;
+        border: none;
+        font-size: 1rem;
+        outline: none;
+      }
+      input[type="number"] {
+        width: 70px;
+      }
+      button {
+        padding: 0.6rem 1.2rem;
+        background-color: #b63b3b;
+        border: none;
+        border-radius: 6px;
+        color: white;
+        font-weight: 700;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      button:hover {
+        background-color: #ff4c4c;
+      }
+      .sort-filter {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+      }
+      .sort-filter button {
+        background-color: #444;
+        color: white;
+        border-radius: 6px;
+        border: none;
+        padding: 0.4rem 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      .sort-filter button.active {
+        background-color: #b63b3b;
+      }
+      .sort-filter button:hover:not(.active) {
+        background-color: #666;
+      }
+      .results {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      @media (min-width: 700px) {
+        .results {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.9);
+        color: #111;
+        padding: 1rem;
+        border-radius: 10px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+      }
+      .card strong {
+        font-size: 1.1rem;
+      }
+      .meta {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="overlay"></div>
+    <div class="container">
+      <h1>🚄 Smart Train Finder</h1>
+
+      <form id="searchForm" onsubmit="return false;">
+        <label>
+          Route:
+          <select id="route">
+            <option value="Zurich|Geneva">Zurich → Geneva</option>
+            <option value="Zurich|Lausanne">Zurich → Lausanne</option>
+            <option value="Basel|Bern">Basel → Bern</option>
+            <option value="Geneva|Lugano">Geneva → Lugano</option>
+            <option value="Lausanne|Lucerne">Lausanne → Lucerne</option>
+            <option value="Zurich|Milan">Zurich → Milan 🇮🇹</option>
+            <option value="Zurich|Stuttgart">Zurich → Stuttgart 🇩🇪</option>
+            <option value="Zurich|Munich">Zurich → Munich 🇩🇪</option>
+          </select>
+        </label>
+
+        <label>
+          Trip Type:
+          <select id="tripType">
+            <option value="oneway">One-way</option>
+            <option value="roundtrip">Roundtrip</option>
+          </select>
+        </label>
+
+        <label>
+          Departure Date:
+          <input type="date" id="departDate" required />
+        </label>
+
+        <label id="nightsLabel" style="display: none">
+          Nights:
+          <input type="number" id="nights" min="1" value="2" />
+        </label>
+
+        <button id="searchBtn" type="submit">Find Journeys</button>
+      </form>
+
+      <div class="sort-filter" id="sortFilter">
+        <button data-sort="fastest" class="active">Fastest</button>
+        <button data-sort="cheapest">Cheapest</button>
+      </div>
+
+      <div id="results" class="results" aria-live="polite"></div>
+    </div>
+
+    <script>
+      const tripTypeEl = document.getElementById("tripType");
+      const nightsLabel = document.getElementById("nightsLabel");
+      const resultsEl = document.getElementById("results");
+      const sortFilter = document.getElementById("sortFilter");
+      let currentOutbound = [];
+      let currentReturn = [];
+      let currentSort = "fastest";
+
+      tripTypeEl.addEventListener("change", () => {
+        nightsLabel.style.display =
+          tripTypeEl.value === "roundtrip" ? "inline-flex" : "none";
+        if (tripTypeEl.value === "oneway") {
+          currentReturn = [];
+        }
+      });
+
+      document
+        .getElementById("searchBtn")
+        .addEventListener("click", async () => {
+          const route = document.getElementById("route").value;
+          const [from, to] = route.split("|");
+          const tripType = tripTypeEl.value;
+          const departDate = document.getElementById("departDate").value;
+          const nights = parseInt(document.getElementById("nights").value) || 1;
+
+          if (!departDate) {
+            alert("Please select a departure date");
+            return;
+          }
+
+          resultsEl.innerHTML = "Loading...";
+
+          try {
+            // Fetch outbound
+            const outboundUrl = `https://transport.opendata.ch/v1/connections?from=${encodeURIComponent(
+              from
+            )}&to=${encodeURIComponent(to)}&date=${departDate}`;
+            const outboundRes = await fetch(outboundUrl);
+            const outboundData = await outboundRes.json();
+            currentOutbound = outboundData.connections || [];
+
+            if (tripType === "roundtrip") {
+              const retDate = new Date(departDate);
+              retDate.setDate(retDate.getDate() + nights);
+              const retDateStr = retDate.toISOString().split("T")[0];
+
+              const returnUrl = `https://transport.opendata.ch/v1/connections?from=${encodeURIComponent(
+                to
+              )}&to=${encodeURIComponent(from)}&date=${retDateStr}`;
+              const returnRes = await fetch(returnUrl);
+              const returnData = await returnRes.json();
+              currentReturn = returnData.connections || [];
+            } else {
+              currentReturn = [];
+            }
+
+            currentSort = "fastest";
+            setActiveSortButton();
+            renderResults();
+          } catch (e) {
+            resultsEl.innerHTML = `<p style="color: red;">Error loading journeys: ${e.message}</p>`;
+          }
+        });
+
+      sortFilter.addEventListener("click", (e) => {
+        if (e.target.tagName !== "BUTTON") return;
+        currentSort = e.target.dataset.sort;
+        setActiveSortButton();
+        renderResults();
+      });
+
+      function setActiveSortButton() {
+        Array.from(sortFilter.children).forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.sort === currentSort);
+        });
+      }
+
+      function renderResults() {
+        resultsEl.innerHTML = "";
+
+        const sortedOutbound = sortConnections(currentOutbound, currentSort);
+        renderConnectionList(sortedOutbound, `Outbound: ${getRouteText(true)}`);
+
+        if (currentReturn.length > 0) {
+          const sortedReturn = sortConnections(currentReturn, currentSort);
+          renderConnectionList(sortedReturn, `Return: ${getRouteText(false)}`);
+        }
+      }
+
+      function sortConnections(conns, mode) {
+        if (!conns || conns.length === 0) return [];
+
+        // Sort by departure datetime DESCENDING (latest first)
+        const byDepartureDesc = conns
+          .slice()
+          .sort(
+            (a, b) => new Date(b.from.departure) - new Date(a.from.departure)
+          );
+
+        if (mode === "fastest") {
+          return byDepartureDesc.slice().sort((a, b) => {
+            const durA = parseDuration(a.duration);
+            const durB = parseDuration(b.duration);
+            if (durA === durB)
+              return new Date(b.from.departure) - new Date(a.from.departure);
+            return durA - durB;
+          });
+        } else if (mode === "cheapest") {
+          return byDepartureDesc.slice().sort((a, b) => {
+            const priceA = a.price || Number.MAX_SAFE_INTEGER;
+            const priceB = b.price || Number.MAX_SAFE_INTEGER;
+            if (priceA === priceB)
+              return new Date(b.from.departure) - new Date(a.from.departure);
+            return priceA - priceB;
+          });
+        }
+        return byDepartureDesc;
+      }
+
+      function parseDuration(duration) {
+        // Duration format: "0d00:55:00"
+        const parts = duration.split("d")[1].split(":");
+        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+      }
+
+      function renderConnectionList(conns, title) {
+        if (!conns || conns.length === 0) {
+          const p = document.createElement("p");
+          p.textContent = `No journeys found for ${title}`;
+          resultsEl.appendChild(p);
+          return;
+        }
+
+        const section = document.createElement("section");
+        section.style.marginBottom = "2rem";
+
+        const h2 = document.createElement("h2");
+        h2.textContent = title;
+        h2.style.marginBottom = "1rem";
+        section.appendChild(h2);
+
+        conns.slice(0, 5).forEach((conn) => {
+          const dep = new Date(conn.from.departure).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          const arr = new Date(conn.to.arrival).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          const duration = conn.duration
+            .replace("00d", "")
+            .replace(/:/g, "h ")
+            .replace("h 00", "h");
+          const transfers = conn.transfers;
+          const products = conn.products ? conn.products.join(" + ") : "N/A";
+          const price = conn.price ? `€${conn.price}` : "Price N/A";
+
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+          <strong>${dep} → ${arr}</strong>
+          <div class="meta">${duration} • Transfers: ${transfers} • ${products} • ${price}</div>
+        `;
+          section.appendChild(card);
+        });
+
+        resultsEl.appendChild(section);
+      }
+
+      function getRouteText(isOutbound) {
+        const route = document.getElementById("route").value.split("|");
+        return isOutbound
+          ? `${route[0]} → ${route[1]}`
+          : `${route[1]} → ${route[0]}`;
+      }
+    </script>
+  </body>
+</html>
